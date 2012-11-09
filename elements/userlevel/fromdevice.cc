@@ -422,11 +422,22 @@ CLICK_DECLS
 #endif
 
 void
-FromDevice::selected(int, int)
+FromDevice::selected(int fd, int mask)
 {
-#if FROMDEVICE_PCAP
-    if (_capture == CAPTURE_PCAP) {
-	// Read and push() at most one packet.
+#if FROMDEVICE_ALLOW_NETMAP
+    if (! (mask & Element::SELECT_READ))
+	return;
+    if (_method == method_netmap) {
+	int r = netmap_dispatch();
+	if (r > 0) {
+	    _count += r;
+	    _task.reschedule();
+	}
+    }
+#endif
+#if FROMDEVICE_ALLOW_PCAP
+    if (_method == method_pcap) {
+	// Read and push() at most one burst of packets.
 	int r = pcap_dispatch(_pcap, _burst, FromDevice_get_packet, (u_char *) this);
 	if (r > 0) {
 	    _count += r;
